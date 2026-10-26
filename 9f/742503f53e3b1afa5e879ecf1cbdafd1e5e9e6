@@ -1,0 +1,14 @@
+hacs.json
+  h_cb7f8177e9a94f 3
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "9f742503f53e3b1afa5e879ecf1cbdafd1e5e9e6",
+  "prompts": {},
+  "humans": {
+    "h_cb7f8177e9a94f": {
+      "author": "Piper McCorkle <contact@piperswe.me>"
+    }
+  }
+}
