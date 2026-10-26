@@ -58,6 +58,16 @@ Follow the instructions to configure the integration.
 
 ## Sensors
 
+### `sensor.watersmart_<host>_water_consumption`
+
+Cumulative water consumption in US gallons, using the same running total as the
+imported hourly statistics. It has device class `water`, state class `total`,
+and unit `gal`, so it can be selected as a water source in the Energy dashboard.
+The total can decrease when WaterSmart corrects recent readings; `total` lets
+Home Assistant apply that correction without treating it as a meter reset.
+If no usage data is available or statistics cannot be recorded, its state is
+unknown instead of zero.
+
 ### `sensor.watersmart_<host>_most_recent_full_day_usage`
 
 Gallons of water used on the most recent full day of data available.
@@ -101,6 +111,13 @@ The statistic appears in the Energy dashboard's water-source picker labeled
 entry's internal id (`watersmart:<entry_id>`) rather than from the host or
 username, so re-authenticating or editing either one keeps writing to the same
 series instead of stranding it and starting a new one.
+
+In **Settings > Dashboards > Energy**, add a water source and select
+`Water consumption (<host>)` to include the imported hourly history. Alternatively,
+select the new Water consumption sensor to track changes from when the sensor
+was added. Select only one of these sources for the account to avoid counting
+the same water twice. The most recent hour/day sensors are period summaries,
+not cumulative meters, and should not be used as Energy dashboard sources.
 
 ### Known limitations
 

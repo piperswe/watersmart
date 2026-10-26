@@ -22,6 +22,9 @@
     },
     "entity": {
         "sensor": {
+            "water_consumption": {
+                "name": "Water consumption"
+            },
             "gallons_for_most_recent_full_day": {
                 "name": "Most recent full day usage"
             },

@@ -39,6 +39,7 @@ class CoordinatorData(TypedDict, total=False):
 
     gallons_for_most_recent_hour: SensorData
     gallons_for_most_recent_full_day: SensorData
+    water_consumption: SensorData
     hourly: list[UsageRecord]
 
 
@@ -104,13 +105,14 @@ class WaterSmartUpdateCoordinator(DataUpdateCoordinator[CoordinatorData]):
                 result
             )
 
-        await self._insert_statistics(result["hourly"])
+        total = await self._insert_statistics(result["hourly"])
+        result["water_consumption"] = {"state": total, "attrs": {}}
 
         _LOGGER.debug("Async update complete")
 
         return result
 
-    async def _insert_statistics(self, hourly: list[UsageRecord]) -> None:
+    async def _insert_statistics(self, hourly: list[UsageRecord]) -> float | None:
         """Import the hourly series into HA's long-term statistics.
 
         Cold start: fold every record against a zero anchor and upsert.
@@ -120,18 +122,25 @@ class WaterSmartUpdateCoordinator(DataUpdateCoordinator[CoordinatorData]):
 
         Errors from the recorder are logged and swallowed: a recorder failure
         must not mask the sensor data the refresh succeeded in producing.
+
+        Returns:
+            The recorded cumulative gallons, or None if unavailable.
         """
+        buckets = stats.bucket_records(hourly)
+        if not buckets:
+            return None
         try:
             anchor = await self._resolve_anchor()
-            rows = stats.fold_cumulative(stats.bucket_records(hourly), anchor)
+            rows = stats.fold_cumulative(buckets, anchor)
             if not rows:
                 _LOGGER.debug("No new statistics buckets to import")
-                return
+                return anchor.sum
             self._write_statistics(rows)
         except _RecorderQueryFailed:
-            return
+            return None
 
         _LOGGER.debug("Imported %d statistics rows", len(rows))
+        return rows[-1]["sum"]
 
     async def _resolve_anchor(self) -> stats.Anchor:
         """Resolve the cumulative anchor the trailing window folds onto.
@@ -281,6 +290,8 @@ def _sensor_data_for_most_recent_hour(data: CoordinatorData) -> SensorData:
     """
 
     records = data["hourly"][-24:]
+    if not records:
+        return {"state": None, "attrs": {}}
     record = records[-1]
     record_date = as_local(_from_timestamp(record["read_datetime"]))
 

@@ -9,6 +9,7 @@ from homeassistant.components.recorder.models import StatisticMeanType
 from homeassistant.const import UnitOfVolume
 from homeassistant.core import HomeAssistant
 from homeassistant.util.dt import get_default_time_zone
+from homeassistant.util.unit_conversion import VolumeConverter
 import pytest
 from pytest_homeassistant_custom_component.common import MockConfigEntry
 
@@ -455,6 +456,12 @@ async def test_warm_path_reimports_last_48h_only(
     assert len(rows) == 48
     assert rows[0]["sum"] == pytest.approx(anchor_sum + 1.0)
     assert rows[-1]["sum"] == pytest.approx(last_sum)
+    state = hass.states.get("sensor.watersmart_test_water_consumption")
+    assert VolumeConverter.convert(
+        float(state.state),
+        state.attributes["unit_of_measurement"],
+        UnitOfVolume.GALLONS,
+    ) == pytest.approx(last_sum, rel=0.001)
 
     # The re-import hinges on looking the anchor up over the ±1h-padded window,
     # so assert the span actually passed to statistics_during_period rather
@@ -486,6 +493,23 @@ async def test_warm_path_no_new_buckets_does_not_write(
         await _refresh(hass)
 
     recorder.add_external.assert_not_called()
+
+
+async def test_consumption_sensor_preserves_total_when_old_history_expires(
+    hass: HomeAssistant, mock_watersmart_client, warm_anchor
+):
+    """A shorter portal window must retain the recorded historical total."""
+    recorder_kwargs, _anchor, last_sum = warm_anchor
+    records = mock_watersmart_client.async_get_hourly_data.return_value
+    mock_watersmart_client.async_get_hourly_data.return_value = records[-48:]
+    with _Recorder(**recorder_kwargs):
+        await _refresh(hass)
+    state = hass.states.get("sensor.watersmart_test_water_consumption")
+    assert VolumeConverter.convert(
+        float(state.state),
+        state.attributes["unit_of_measurement"],
+        UnitOfVolume.GALLONS,
+    ) == pytest.approx(last_sum)
 
 
 @pytest.mark.asyncio
@@ -535,6 +559,9 @@ async def test_recorder_failure_is_swallowed(
 
     assert _coordinator(hass).last_update_success is True
     assert "Failed to write statistics" in caplog.text
+    assert (
+        hass.states.get("sensor.watersmart_test_water_consumption").state == "unknown"
+    )
 
 
 @pytest.mark.asyncio
@@ -550,7 +577,49 @@ async def test_recorder_query_failure_is_swallowed(
 
     assert _coordinator(hass).last_update_success is True
     assert "Failed to read last statistics" in caplog.text
+    assert (
+        hass.states.get("sensor.watersmart_test_water_consumption").state == "unknown"
+    )
     recorder.add_external.assert_not_called()
+
+
+@pytest.mark.parametrize("gallons", [0.0, 99.0])
+async def test_consumption_sensor_applies_corrections_without_double_counting(
+    hass: HomeAssistant, mock_watersmart_client, init_integration, gallons
+):
+    """Repeated history replaces the total, including downward corrections."""
+    records = mock_watersmart_client.async_get_hourly_data.return_value
+    records[1]["gallons"] = 50.0
+    with _Recorder():
+        await _refresh(hass)
+    records[1]["gallons"] = gallons
+    expected = sum(r["gallons"] or 0 for r in records)
+    with _Recorder():
+        await _refresh(hass)
+        await _refresh(hass)
+    state = hass.states.get("sensor.watersmart_test_water_consumption")
+    assert VolumeConverter.convert(
+        float(state.state),
+        state.attributes["unit_of_measurement"],
+        UnitOfVolume.GALLONS,
+    ) == pytest.approx(expected, rel=0.001)
+
+
+@pytest.mark.parametrize("missing", [[], [None, None]])
+async def test_consumption_sensor_missing_data(
+    hass: HomeAssistant, mock_watersmart_client, init_integration, missing
+):
+    """Missing data must not publish a zero meter reading."""
+    records = mock_watersmart_client.async_get_hourly_data.return_value
+    mock_watersmart_client.async_get_hourly_data.return_value = [
+        dict(records[i], gallons=value) for i, value in enumerate(missing)
+    ]
+    with _Recorder() as recorder:
+        await _refresh(hass)
+    recorder.add_external.assert_not_called()
+    assert (
+        hass.states.get("sensor.watersmart_test_water_consumption").state == "unknown"
+    )
 
 
 @pytest.mark.asyncio

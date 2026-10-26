@@ -2,11 +2,37 @@
 
 import datetime as dt
 
+from homeassistant.components.sensor import SensorDeviceClass, SensorStateClass
+from homeassistant.const import UnitOfVolume
 from homeassistant.core import HomeAssistant
 from homeassistant.util.dt import utcnow
+from homeassistant.util.unit_conversion import VolumeConverter
 import pytest
 from pytest_homeassistant_custom_component.common import async_fire_time_changed
 from syrupy.assertion import SnapshotAssertion
+
+
+@pytest.mark.usefixtures("init_integration")
+def test_water_consumption_sensor(hass: HomeAssistant, mock_watersmart_client):
+    """Expose a cumulative volume eligible for the Energy water-source picker."""
+    state = hass.states.get("sensor.watersmart_test_water_consumption")
+    records = mock_watersmart_client.async_get_hourly_data.return_value
+    assert VolumeConverter.convert(
+        float(state.state),
+        state.attributes["unit_of_measurement"],
+        UnitOfVolume.GALLONS,
+    ) == pytest.approx(sum(r["gallons"] or 0 for r in records), rel=0.001)
+    assert state.attributes["device_class"] == SensorDeviceClass.WATER
+    assert state.attributes["state_class"] == SensorStateClass.TOTAL
+    assert state.attributes["unit_of_measurement"] in {
+        UnitOfVolume.LITERS,
+        UnitOfVolume.GALLONS,
+    }
+    for period in ("hour", "full_day"):
+        summary = hass.states.get(
+            f"sensor.watersmart_test_gallons_for_most_recent_{period}"
+        )
+        assert "state_class" not in summary.attributes
 
 
 @pytest.fixture

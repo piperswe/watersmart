@@ -8,6 +8,7 @@ from homeassistant.components.sensor import (
     SensorDeviceClass,
     SensorEntity,
     SensorEntityDescription,
+    SensorStateClass,
 )
 from homeassistant.const import UnitOfVolume
 from homeassistant.core import HomeAssistant, callback
@@ -30,6 +31,14 @@ class WaterSmartSensorDescription(SensorEntityDescription):
 
 SENSOR_TYPES: tuple[WaterSmartSensorDescription, ...] = (
     WaterSmartSensorDescription(
+        key=SensorKey.WATER_CONSUMPTION,
+        value_fn=lambda data: cast("float | None", data),
+        device_class=SensorDeviceClass.WATER,
+        native_unit_of_measurement=UnitOfVolume.GALLONS,
+        state_class=SensorStateClass.TOTAL,
+        translation_key="water_consumption",
+    ),
+    WaterSmartSensorDescription(
         key=SensorKey.GALLONS_FOR_MOST_RECENT_HOUR,
         value_fn=lambda data: cast("float", data),
         device_class=SensorDeviceClass.WATER,
@@ -51,7 +60,7 @@ async def async_setup_entry(  # noqa: RUF029
     entry: WaterSmartConfigEntry,
     async_add_entities: AddEntitiesCallback,
 ) -> None:
-    """Set up OpenWeatherMap sensor entities based on a config entry."""
+    """Set up WaterSmart sensor entities based on a config entry."""
     data = entry.runtime_data
     coordinator = data.coordinator
 
@@ -63,7 +72,7 @@ async def async_setup_entry(  # noqa: RUF029
 
 
 class WaterSmartSensor(CoordinatorEntity[WaterSmartUpdateCoordinator], SensorEntity):
-    """Abstract class for an OpenWeatherMap sensor."""
+    """A WaterSmart sensor."""
 
     _attr_attribution = ATTRIBUTION
     _attr_has_entity_name = True
@@ -82,6 +91,8 @@ class WaterSmartSensor(CoordinatorEntity[WaterSmartUpdateCoordinator], SensorEnt
         self._attr_unique_id = (
             f"{coordinator.hostname}-{coordinator.username}-{description.key}".lower()
         )
+        if description.key == SensorKey.WATER_CONSUMPTION:
+            self._attr_unique_id = f"{coordinator.entry_id}-water_consumption".lower()
         self._attr_device_info = coordinator.device_info
 
     @property

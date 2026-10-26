@@ -59,6 +59,11 @@
           'read_datetime': 1718834400,
         }),
       ]),
+      'water_consumption': dict({
+        'attrs': dict({
+        }),
+        'state': 14.96,
+      }),
     }),
     'entry': dict({
       'data': dict({
