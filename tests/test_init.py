@@ -1,6 +1,6 @@
 """Test component setup."""
 
-from unittest.mock import MagicMock, patch
+from unittest.mock import AsyncMock, MagicMock, patch
 
 from homeassistant.core import HomeAssistant
 from homeassistant.setup import async_setup_component
@@ -21,6 +21,7 @@ async def test_remove_entry_clears_statistics(hass: HomeAssistant, init_integrat
     entry = init_integration
 
     mock_recorder = MagicMock()
+    mock_recorder.async_add_executor_job = AsyncMock(return_value={})
     with patch(
         "custom_components.watersmart.statistics.get_instance",
         return_value=mock_recorder,

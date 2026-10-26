@@ -119,6 +119,31 @@ was added. Select only one of these sources for the account to avoid counting
 the same water twice. The most recent hour/day sensors are period summaries,
 not cumulative meters, and should not be used as Energy dashboard sources.
 
+### Actual billed costs
+
+On US-dollar portals with billing line-item charts, the integration also imports
+actual billed charges and creates a **Billed cost: <service>** sensor for each
+chart. These are cumulative monetary sensors (`monetary`, `total`, `USD`). Their
+attributes include `last_bill_amount` and `last_bill_date`. Water and wastewater
+remain separate services, using the portal's chart names. Fixed charges,
+surcharges, and tiered volume charges are included; forecasts are excluded.
+
+Edit the water source in **Settings > Dashboards > Energy**, choose the option
+to use an entity tracking total costs, and select the corresponding
+`Billed cost: <service> (<host>)` statistic. This pairs the historical water
+consumption with the historical billed costs. Alternatively, select the monetary
+sensor to track changes from when that sensor was added. Choose the water
+service's cost series to track water charges; wastewater has its own series.
+
+Costs are posted on each bill date in Home Assistant's configured time zone,
+not spread across the days or hours when the water was consumed. Every refresh
+reimports the available bills to incorporate corrections and credits, retaining
+the cumulative total from older bills that have left the portal's history.
+Missing or incomplete billing data produces an unknown sensor state rather than
+a zero charge and does not interrupt the usage sensors. Unsupported currencies
+are skipped instead of guessing their currency. Portals without billing charts
+continue to provide usage only.
+
 ### Known limitations
 
 - Historical corrections that WaterSmart emits more than roughly two days after

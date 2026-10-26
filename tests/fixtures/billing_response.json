@@ -1,0 +1,27 @@
+{
+  "data": {
+    "chartData": {
+      "ledger_bill_chart_id": 1,
+      "units": "dollars",
+      "commentary": {"chart_header": "Water charges"},
+      "data_series": {
+        "fixed": {
+          "Customer Charge": {
+            "configuration": {"charge_type": "fixed"},
+            "series": [{"x": "2026-09-27", "y": 7.75}, {"x": "2026-08-27", "y": 7.75}]
+          },
+          "Surcharge": {
+            "configuration": {"charge_type": "fixed"},
+            "series": [{"x": "2026-09-27", "y": 0.3}, {"x": "2026-08-27", "y": 0.1}]
+          }
+        },
+        "variable": {
+          "Tier I Charge": {
+            "configuration": {"charge_type": "variable"},
+            "series": [{"x": "2026-09-27", "y": 10.95}, {"x": "2026-08-27", "y": 2.15}]
+          }
+        }
+      }
+    }
+  }
+}

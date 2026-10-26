@@ -79,8 +79,6 @@ async def async_unload_entry(hass: HomeAssistant, entry: WaterSmartConfigEntry) 
     return bool(await hass.config_entries.async_unload_platforms(entry, PLATFORMS))
 
 
-async def async_remove_entry(  # noqa: RUF029
-    hass: HomeAssistant, entry: WaterSmartConfigEntry
-) -> None:
+async def async_remove_entry(hass: HomeAssistant, entry: WaterSmartConfigEntry) -> None:
     """Clear the integration's external statistics series on entry removal."""
-    clear_statistics(hass, entry)
+    await clear_statistics(hass, entry)

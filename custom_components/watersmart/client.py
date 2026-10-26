@@ -13,6 +13,8 @@ import aiohttp
 from bs4 import BeautifulSoup, PageElement
 from yarl import URL
 
+from .billing import BillingChart, parse_billing_chart
+
 # Account number format will vary between municipality, so
 # match on a string of non-whitespace characters.
 ACCOUNT_NUMBER_RE = re.compile(r"^\S+$")
@@ -136,6 +138,55 @@ class WaterSmartClient:
         response_json: UsageHistoryPayload = await response.json()
 
         return response_json["data"]["series"]
+
+    @_authenticated
+    async def async_get_billing_data(self) -> list[BillingChart]:
+        """Discover billed-service charts and retrieve their line items.
+
+        Returns:
+            Separate billing histories, or an empty list on portals without charts.
+
+        Raises:
+            ScrapeError: If the portal currency or chart URL is unsupported.
+        """
+        base = URL(f"https://{self._hostname}.watersmart.com")
+        response = await self._session.get(
+            str(base / "index.php/billing/evaluate"), headers=_DEFAULT_HEADERS
+        )
+        response.raise_for_status()
+        soup = BeautifulSoup(await response.text(), "html.parser")
+        nodes = soup.select(".bill-line-item-chart[data-url]")
+        if not nodes:
+            return []
+        country = soup.select_one("#service-country-data")
+        currency = soup.select_one("#currency-data")
+        # The chart says only 'dollars'. Confirm USD from portal metadata,
+        # rather than labeling another country's dollars as US dollars.
+        if (
+            country is None
+            or country.get("data-service-country-code") != "US"
+            or currency is None
+            or currency.get("data-currency-symbol") != "$"
+        ):
+            message = "Unsupported or missing billing currency"
+            raise ScrapeError(message)
+        charts: dict[int, BillingChart] = {}
+        for node in nodes:
+            url = base.join(URL(str(node["data-url"])))
+            if (
+                url.origin() != base
+                or url.path != "/index.php/rest/v1/Chart/billLineItemChart"
+            ):
+                message = "Unexpected billing chart URL"
+                raise ScrapeError(message)
+            response = await self._session.get(str(url), headers=_DEFAULT_HEADERS)
+            response.raise_for_status()
+            chart = parse_billing_chart(await response.json(), "USD")
+            if str(chart.chart_id) != url.query.get("chartID"):
+                message = "Billing chart ID does not match request"
+                raise ScrapeError(message)
+            charts[chart.chart_id] = chart
+        return list(charts.values())
 
     async def _authenticate_if_needed(self) -> None:
         if not self._authenticated_at or self._authenticated_at < dt.datetime.now(

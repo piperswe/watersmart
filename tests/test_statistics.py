@@ -286,7 +286,7 @@ def test_select_anchor_cold_starts_when_window_empty():
 
 
 @pytest.mark.asyncio
-async def test_clear_calls_recorder_with_statistic_id(  # noqa: RUF029
+async def test_clear_calls_recorder_with_statistic_id(
     hass: HomeAssistant,
 ):
     entry = MockConfigEntry(
@@ -295,14 +295,20 @@ async def test_clear_calls_recorder_with_statistic_id(  # noqa: RUF029
         entry_id="entry-id-123",
     )
     mock_recorder = MagicMock()
+    mock_recorder.async_add_executor_job = AsyncMock(
+        return_value={
+            "watersmart:entry-id-123_billed_cost_1_usd": {},
+            "watersmart:other-entry_billed_cost_1_usd": {},
+        }
+    )
     with patch(
         "custom_components.watersmart.statistics.get_instance",
         return_value=mock_recorder,
     ):
-        clear(hass, entry)
+        await clear(hass, entry)
 
     mock_recorder.async_clear_statistics.assert_called_once_with(
-        ["watersmart:entry-id-123"]
+        ["watersmart:entry-id-123", "watersmart:entry-id-123_billed_cost_1_usd"]
     )
 
 

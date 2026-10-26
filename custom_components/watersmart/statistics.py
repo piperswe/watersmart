@@ -29,11 +29,13 @@ from homeassistant.components.recorder.models import (
     StatisticMeanType,
     StatisticMetaData,
 )
+from homeassistant.components.recorder.statistics import get_metadata
 from homeassistant.const import UnitOfVolume
 from homeassistant.core import HomeAssistant
 from homeassistant.util.dt import get_default_time_zone
 from homeassistant.util.unit_conversion import VolumeConverter
 
+from .billing import BillingChart
 from .client import UsageRecord
 from .const import DOMAIN
 from .types import WaterSmartConfigEntry
@@ -126,6 +128,24 @@ def metadata_for(entry_id: str, hostname: str) -> StatisticMetaData:
     if _SUPPORTS_UNIT_CLASS:
         metadata["unit_class"] = VolumeConverter.UNIT_CLASS
     return cast("StatisticMetaData", metadata)
+
+
+def billing_metadata_for(
+    entry_id: str, hostname: str, chart: BillingChart
+) -> StatisticMetaData:
+    """Build monetary statistics metadata for one billed service.
+
+    Returns:
+        Metadata for the service's cumulative billed charges.
+    """
+    return {
+        "mean_type": StatisticMeanType.NONE,
+        "has_sum": True,
+        "name": f"Billed cost: {chart.name} ({hostname})",
+        "source": DOMAIN,
+        "statistic_id": f"{statistic_id_for(entry_id)}_{chart.key}",
+        "unit_of_measurement": chart.currency,
+    }
 
 
 def bucket_records(
@@ -226,10 +246,19 @@ def select_anchor(window_rows: Sequence[Mapping[str, Any]]) -> Anchor:
     return Anchor(start=_utc_from_epoch(row["start"]), sum=row["sum"] or 0.0)
 
 
-def clear(hass: HomeAssistant, entry: WaterSmartConfigEntry) -> None:
-    """Clear the external statistics series for an entry.
+async def clear(hass: HomeAssistant, entry: WaterSmartConfigEntry) -> None:
+    """Clear usage and billed-cost statistics for an entry.
 
-    ``async_clear_statistics`` schedules work on the recorder thread and
-    returns immediately, so there is nothing to await.
+    Discover all cost series, including services no longer exposed by the
+    portal, before scheduling their deletion on the recorder thread.
     """
-    get_instance(hass).async_clear_statistics([statistic_id_for(entry.entry_id)])
+    recorder = get_instance(hass)
+    prefix = statistic_id_for(entry.entry_id)
+    metadata = await recorder.async_add_executor_job(
+        lambda: get_metadata(hass, statistic_source=DOMAIN)
+    )
+    ids = [
+        prefix,
+        *(key for key in metadata if key.startswith(f"{prefix}_billed_cost_")),
+    ]
+    recorder.async_clear_statistics(ids)

@@ -21,6 +21,7 @@ from homeassistant.helpers.update_coordinator import DataUpdateCoordinator, Upda
 from homeassistant.util.dt import as_local, get_default_time_zone, start_of_local_day
 
 from . import statistics as stats
+from .billing import BillingChart
 from .client import AuthenticationError, UsageRecord, WaterSmartClient
 from .const import DEFAULT_SCAN_INTERVAL, DOMAIN, MANUFACTURER, SensorKey
 from .types import SensorData
@@ -41,6 +42,7 @@ class CoordinatorData(TypedDict, total=False):
     gallons_for_most_recent_full_day: SensorData
     water_consumption: SensorData
     hourly: list[UsageRecord]
+    billing: dict[str, SensorData]
 
 
 class _DataConverterT(Protocol):
@@ -107,10 +109,88 @@ class WaterSmartUpdateCoordinator(DataUpdateCoordinator[CoordinatorData]):
 
         total = await self._insert_statistics(result["hourly"])
         result["water_consumption"] = {"state": total, "attrs": {}}
+        billing = await self._async_billing_data()
+        if billing:
+            result["billing"] = billing
 
         _LOGGER.debug("Async update complete")
 
         return result
+
+    async def _async_billing_data(self) -> dict[str, SensorData]:
+        """Import optional billing data without interrupting usage updates.
+
+        Returns:
+            Cumulative costs keyed by service and currency.
+        """
+        try:
+            async with timeout(30):
+                charts = await self.watersmart.async_get_billing_data()
+        except Exception:
+            _LOGGER.exception("Failed to fetch billed charges")
+            return {}
+        result: dict[str, SensorData] = {}
+        for chart in charts:
+            if not chart.bills:
+                continue
+            try:
+                total = await self._insert_billing_statistics(chart)
+            except _RecorderQueryFailed:
+                total = None
+            result[chart.key] = {
+                "state": total,
+                "attrs": {
+                    "service": chart.name,
+                    "currency": chart.currency,
+                    "last_bill_date": chart.bills[-1].date.isoformat(),
+                    "last_bill_amount": chart.bills[-1].amount,
+                },
+            }
+        return result
+
+    async def _insert_billing_statistics(self, chart: BillingChart) -> float:
+        """Re-import bills against the recorded total before the returned history.
+
+        Returns:
+            The cumulative billed cost.
+
+        Raises:
+            _RecorderQueryFailed: If the recorder query or write failed.
+        """
+        metadata = stats.billing_metadata_for(self.entry_id, self.hostname, chart)
+        statistic_id = metadata["statistic_id"]
+        buckets = [
+            (
+                dt.datetime.combine(bill.date, dt.time(), get_default_time_zone())
+                .astimezone(dt.UTC)
+                .replace(minute=0),
+                bill.amount,
+            )
+            for bill in chart.bills
+        ]
+        # Re-fold every returned bill so revisions and credits replace earlier
+        # amounts. Bills that have expired from the portal stay in the anchor.
+        earlier = await self._recorder_query(
+            "read billing anchor",
+            functools.partial(
+                statistics_during_period,
+                self.hass,
+                dt.datetime(1970, 1, 1, tzinfo=dt.UTC),
+                buckets[0][0],
+                statistic_ids={statistic_id},
+                period="hour",
+                units=None,
+                types={"sum"},
+            ),
+        )
+        anchor = stats.select_anchor(earlier.get(statistic_id, []))
+        rows = stats.fold_cumulative(buckets, anchor)
+        try:
+            async_add_external_statistics(self.hass, metadata, rows)
+        except Exception as error:
+            _LOGGER.warning("Failed to write billed charges", exc_info=True)
+            raise _RecorderQueryFailed from error
+        return rows[-1]["sum"]
 
     async def _insert_statistics(self, hourly: list[UsageRecord]) -> float | None:
         """Import the hourly series into HA's long-term statistics.

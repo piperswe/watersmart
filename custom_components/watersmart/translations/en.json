@@ -22,6 +22,9 @@
     },
     "entity": {
         "sensor": {
+            "billed_cost": {
+                "name": "Billed cost: {service}"
+            },
             "water_consumption": {
                 "name": "Water consumption"
             },

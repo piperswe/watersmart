@@ -70,6 +70,33 @@ async def async_setup_entry(  # noqa: RUF029
 
     async_add_entities(entities)
 
+    known_costs: set[str] = set()
+
+    @callback
+    def add_cost_sensors() -> None:
+        new_entities = []
+        for key, data in coordinator.data.get("billing", {}).items():
+            if key in known_costs:
+                continue
+            known_costs.add(key)
+            description = WaterSmartSensorDescription(
+                key=key,
+                value_fn=lambda value: cast("float | None", value),
+                device_class=SensorDeviceClass.MONETARY,
+                native_unit_of_measurement=data["attrs"]["currency"],
+                state_class=SensorStateClass.TOTAL,
+                translation_key="billed_cost",
+            )
+            entity = WaterSmartSensor(coordinator, description)
+            entity._attr_translation_placeholders = {  # noqa: SLF001
+                "service": data["attrs"]["service"]
+            }
+            new_entities.append(entity)
+        async_add_entities(new_entities)
+
+    add_cost_sensors()
+    entry.async_on_unload(coordinator.async_add_listener(add_cost_sensors))
+
 
 class WaterSmartSensor(CoordinatorEntity[WaterSmartUpdateCoordinator], SensorEntity):
     """A WaterSmart sensor."""
@@ -91,8 +118,10 @@ class WaterSmartSensor(CoordinatorEntity[WaterSmartUpdateCoordinator], SensorEnt
         self._attr_unique_id = (
             f"{coordinator.hostname}-{coordinator.username}-{description.key}".lower()
         )
-        if description.key == SensorKey.WATER_CONSUMPTION:
-            self._attr_unique_id = f"{coordinator.entry_id}-water_consumption".lower()
+        if description.key == SensorKey.WATER_CONSUMPTION or description.key.startswith(
+            "billed_cost_"
+        ):
+            self._attr_unique_id = f"{coordinator.entry_id}-{description.key}".lower()
         self._attr_device_info = coordinator.device_info
 
     @property
@@ -116,11 +145,15 @@ class WaterSmartSensor(CoordinatorEntity[WaterSmartUpdateCoordinator], SensorEnt
     @staticmethod
     def _get_sensor_data(
         coordinator_data: CoordinatorData,
-        kind: SensorKey,
+        kind: str,
     ) -> SensorData:
         """Get sensor data.
 
         Returns:
             The actual sensor data.
         """
+        if kind.startswith("billed_cost_"):
+            return coordinator_data.get("billing", {}).get(
+                kind, {"state": None, "attrs": {}}
+            )
         return cast("dict[str, SensorData]", coordinator_data)[kind]

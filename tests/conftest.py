@@ -157,6 +157,7 @@ def mock_watersmart_client(fixture_loader) -> Generator[AsyncMock]:
         client = mock_client.return_value
         client.async_get_account_number.return_value = "1234567-8900"
         client.async_get_hourly_data.return_value = hourly_data
+        client.async_get_billing_data.return_value = []
 
         yield client
 
