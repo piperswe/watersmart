@@ -1,0 +1,46 @@
+README.md
+  s_79172d380f4d00::t_0616cbd1ad6e41 61-70,115-120
+  s_79172d380f4d00::t_c298c1c3176218 121
+custom_components/watersmart/sensor.py
+  s_79172d380f4d00::t_0616cbd1ad6e41 94-95
+  s_79172d380f4d00::t_d78e799f03102d 11,33-40,63,75
+custom_components/watersmart/const.py
+  s_79172d380f4d00::t_d78e799f03102d 18
+custom_components/watersmart/coordinator.py
+  s_79172d380f4d00::t_0616cbd1ad6e41 129-131,134
+  s_79172d380f4d00::t_d78e799f03102d 42,108-109,115,125-127,140,143,293-294
+  s_79172d380f4d00::t_1cd573409ed04a 137
+tests/test_sensor.py
+  s_79172d380f4d00::t_855b30a32b9598 5-6,15-19,25-26,31-35
+  s_79172d380f4d00::t_ccc9fa2ce4e3a0 21-23
+  s_79172d380f4d00::t_620a3b7106dc36 27,30
+  s_79172d380f4d00::t_ea160ea6e41ec5 9,20,24,28-29
+  s_79172d380f4d00::t_e12f8340054c17 36-37
+tests/snapshots/test_diagnostics.ambr
+  s_79172d380f4d00::t_e99ef07148b2ff 62-66
+tests/test_statistics.py
+  s_79172d380f4d00::t_1cd573409ed04a 498-508,512-514,592-594
+  s_79172d380f4d00::t_84ea2ef0c79806 562-564,580-582,620-622
+  s_79172d380f4d00::t_855b30a32b9598 459,584-591,595-600,606-618
+  s_79172d380f4d00::t_ccc9fa2ce4e3a0 461-463,509-511,602-604
+  s_79172d380f4d00::t_ea160ea6e41ec5 12,460,464,601,605
+  s_79172d380f4d00::t_8c19dc342a6253 583
+custom_components/watersmart/translations/en.json
+  s_79172d380f4d00::t_d78e799f03102d 25-27
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "57fd42b9dfec6729e65ccacc4ce1e622a8f0f052",
+  "prompts": {},
+  "sessions": {
+    "s_79172d380f4d00": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a179df-1f49-78d0-be01-5e0563c97781",
+        "model": "gpt-6.1-sol"
+      },
+      "human_author": "Piper McCorkle <contact@piperswe.me>"
+    }
+  }
+}
